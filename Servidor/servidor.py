@@ -27,7 +27,15 @@ def enviarArchivoAlCliente(dirCliente, numCliente):
     inicioTransmision = time.time()
 
     # Se envía el contenido del archivo
-    sock.sendto(contenidoArchivo, dirCliente)
+    BUFFER_SIZE = 32768
+    inicioFragmento = 0
+    finFragmento = BUFFER_SIZE - 1
+    while contenidoArchivo[inicioFragmento:finFragmento] != b'':
+        sock.sendto(contenidoArchivo[inicioFragmento:finFragmento], dirCliente)
+        inicioFragmento += BUFFER_SIZE
+        finFragmento += BUFFER_SIZE
+        time.sleep(0.000001)
+
     sock.sendto('Fin'.encode(), dirCliente)
     time.sleep(0.2)
 

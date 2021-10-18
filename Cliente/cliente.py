@@ -28,13 +28,14 @@ def recibirArchivoDelServidor(sock):
     inicioTransmision = time.time()
 
     # Se recibe y se escribe el contenido del archivo
-    recibido, server = sock.recvfrom(4096)
+    FILE_BUFFER_SIZE = 65536
+    recibido, server = sock.recvfrom(FILE_BUFFER_SIZE)
     i = 0
     while not str(recibido).endswith('Fin\''):
         archivo.write(recibido)
         i+=1
         print("Cliente {}: Parte {} recibida".format(numCliente,i))
-        recibido, server = sock.recvfrom(4096)
+        recibido, server = sock.recvfrom(FILE_BUFFER_SIZE)
     archivo.write(recibido[:-3])
 
     tiempoDeTransmision = time.time() - inicioTransmision
