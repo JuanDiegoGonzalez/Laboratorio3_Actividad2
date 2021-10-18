@@ -1,6 +1,70 @@
 import socket, threading, hashlib, time, os, platform, subprocess, ipaddress
 from datetime import datetime
 
+# Declaracion de atributos
+sock = None
+nombreArchivo = None
+contenidoArchivo = None
+cantConexionesTotales = None
+threadsClientes = []
+cantidadConectadosYListos = 0
+direccionesClientes = []
+tiemposDeTransmision = []
+
+def enviarArchivoAlCliente(dirCliente, numCliente):
+    # Se envía el id del cliente
+    sock.sendto(numCliente.encode(), dirCliente)
+    time.sleep(0.2)
+
+    # Se envía la cantidad de conexiones concurrentes
+    sock.sendto(str(cantConexionesTotales).encode(), dirCliente)
+    time.sleep(0.2)
+
+    # Se envía el nombre del archivo
+    sock.sendto(nombreArchivo.encode(), dirCliente)
+    time.sleep(0.2)
+
+    inicioTransmision = time.time()
+
+    # Se envía el contenido del archivo
+    sock.sendto(contenidoArchivo, dirCliente)
+    sock.sendto('Fin'.encode(), dirCliente)
+    time.sleep(0.2)
+
+    tiemposDeTransmision[int(numCliente)-1] = time.time() - inicioTransmision
+    print("Archivo enviado al cliente ... ", dirCliente)
+
+def escribirLog(tiemposDeTransmision):
+    # a.
+    fechaStr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    archivo = open("Logs/{}-log.txt".format(fechaStr), "w")
+
+    # b.
+    archivo.write("Nombre del archivo enviado: {}\n".format(nombreArchivo))
+    archivo.write("Tamano del archivo enviado: {} bytes\n\n".format(os.path.getsize("ArchivosAEnviar/{}".format(nombreArchivo))))
+
+    # c.
+    archivo.write("Clientes a los que se realizo la transferencia:\n")
+    for i in range(cantConexionesTotales):
+        archivo.write("Cliente {}: {}\n".format(i + 1, direccionesClientes[i]))
+    archivo.write("\n")
+
+    '''
+    # d.
+    archivo.write("Resultados de la transferencia:\n")
+    for i in range(cantConexionesTotales):
+        archivo.write("Cliente {}: {}\n".format(i + 1, resultComprobacionHash[i]))
+    archivo.write("\n")
+    '''
+
+    # e.
+    archivo.write("Tiempos de transmision:\n")
+    for i in range(cantConexionesTotales):
+        archivo.write("Cliente {}: {:.2f} segundos\n".format(i + 1, tiemposDeTransmision[i]))
+    archivo.write("\n")
+
+    archivo.close()
+
 if __name__ == "__main__":
     try:
         # Se carga el contenido del archivo
@@ -12,8 +76,8 @@ if __name__ == "__main__":
         print("Archivo cargado")
 
         # Se establece la cantidad de clientes a atender al tiempo
-        cantConexiones = int(input("\nIngrese la cantidad de conexiones concurrentes: "))
-        if cantConexiones < 1:
+        cantConexionesTotales = int(input("\nIngrese la cantidad de conexiones concurrentes: "))
+        if cantConexionesTotales < 1:
             raise ValueError("[Error] El numero debe ser mayor a 0")
 
         # Se crea el socket UDP del servidor
@@ -41,28 +105,35 @@ if __name__ == "__main__":
         if not os.path.isdir('Logs'):
             os.mkdir(os.path.join(os.getcwd(), "Logs"))
 
-
-
-
         # Se inicializan las listas de clientes
-        resultComprobacionHash = [None for i in range(cantConexiones)]
-        tiemposDeTransmision = [None for i in range(cantConexiones)]
+        tiemposDeTransmision = [None for i in range(cantConexionesTotales)]
 
         print("\nServidor listo para atender clientes")
 
-        # Se
+        # Se escuchan las peticiones de los clientes (que son las mismas confirmaciones de listo)
         while True:
-            print('\nwaiting to receive message')
-            data, address = sock.recvfrom(4096)
+            request, address = sock.recvfrom(4096)
+            print('Se recibio una peticion de {}'.format(address))
+            thread = threading.Thread(target=enviarArchivoAlCliente, args=(address, str(len(threadsClientes)+1)))
+            threadsClientes.append(thread)
+            direccionesClientes.append(address)
+            cantidadConectadosYListos += 1
 
-            print('received {} bytes from {}'.format(
-                len(data), address))
-            print(data)
+            # Cuando se completa el grupo de clientes, se les envia el archivo y se escribe el log
+            if cantidadConectadosYListos == cantConexionesTotales:
+                for thread in threadsClientes:
+                    thread.start()
 
-            if data:
-                sent = sock.sendto(data, address)
-                print('sent {} bytes back to {}'.format(
-                    sent, address))
+                for thread in threadsClientes:
+                    thread.join()
+
+                escribirLog(tiemposDeTransmision)
+
+                # Se reinician los atributos
+                threadsClientes = []
+                direccionesClientes = []
+                cantidadConectadosYListos = 0
+                tiemposDeTransmision = [None for i in range(cantConexionesTotales)]
 
     except (FileNotFoundError, ValueError, ConnectionResetError) as e:
         print("\n", e, sep="")
