@@ -7,11 +7,14 @@ nombreArchivo = None
 contenidoArchivo = None
 cantConexionesTotales = None
 threadsClientes = []
-cantidadConectadosYListos = 0
 direccionesClientes = []
+cantidadConectadosYListos = 0
+cantidadExitosos = 0
 tiemposDeTransmision = []
 
 def enviarArchivoAlCliente(dirCliente, numCliente):
+    global cantidadExitosos
+
     # Se envía el id del cliente
     sock.sendto(numCliente.encode(), dirCliente)
     time.sleep(0.2)
@@ -24,22 +27,29 @@ def enviarArchivoAlCliente(dirCliente, numCliente):
     sock.sendto(nombreArchivo.encode(), dirCliente)
     time.sleep(0.2)
 
+    # Se envía el tamanio original del archivo
+    sock.sendto(str(os.path.getsize("ArchivosAEnviar/{}".format(nombreArchivo))).encode(), dirCliente)
+    time.sleep(0.2)
+
     inicioTransmision = time.time()
 
     # Se envía el contenido del archivo
     BUFFER_SIZE = 32768
     inicioFragmento = 0
-    finFragmento = BUFFER_SIZE - 1
+    finFragmento = BUFFER_SIZE
     while contenidoArchivo[inicioFragmento:finFragmento] != b'':
         sock.sendto(contenidoArchivo[inicioFragmento:finFragmento], dirCliente)
         inicioFragmento += BUFFER_SIZE
         finFragmento += BUFFER_SIZE
         time.sleep(0.000001)
-
     sock.sendto('Fin'.encode(), dirCliente)
     time.sleep(0.2)
 
     tiemposDeTransmision[int(numCliente)-1] = time.time() - inicioTransmision
+
+    # Se recibe la comprobacion de la entrega
+    resultadoEntrega, cliente = sock.recvfrom(4096)
+    cantidadExitosos += 1 if resultadoEntrega.decode() == "True" else 0
     print("Archivo enviado al cliente ... ", dirCliente)
 
 def escribirLog(tiemposDeTransmision):
@@ -57,13 +67,10 @@ def escribirLog(tiemposDeTransmision):
         archivo.write("Cliente {}: {}\n".format(i + 1, direccionesClientes[i]))
     archivo.write("\n")
 
-    '''
     # d.
     archivo.write("Resultados de la transferencia:\n")
-    for i in range(cantConexionesTotales):
-        archivo.write("Cliente {}: {}\n".format(i + 1, resultComprobacionHash[i]))
+    archivo.write("La entrega fue exitosa para {} de {} clientes\n".format(cantidadExitosos, cantConexionesTotales))
     archivo.write("\n")
-    '''
 
     # e.
     archivo.write("Tiempos de transmision:\n")
@@ -114,6 +121,7 @@ if __name__ == "__main__":
             os.mkdir(os.path.join(os.getcwd(), "Logs"))
 
         # Se inicializan las listas de clientes
+        cantidadExitosos = 0
         tiemposDeTransmision = [None for i in range(cantConexionesTotales)]
 
         print("\nServidor listo para atender clientes")
@@ -141,6 +149,7 @@ if __name__ == "__main__":
                 threadsClientes = []
                 direccionesClientes = []
                 cantidadConectadosYListos = 0
+                cantidadExitosos = 0
                 tiemposDeTransmision = [None for i in range(cantConexionesTotales)]
 
     except (FileNotFoundError, ValueError, ConnectionResetError) as e:

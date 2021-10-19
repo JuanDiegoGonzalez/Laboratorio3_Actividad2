@@ -6,7 +6,7 @@ server_address = None
 
 def recibirArchivoDelServidor(sock):
     # Se envia una peticion al servidor (que es la misma confirmacion de listo)
-    sent = sock.sendto(b'Enviame el archivo', server_address)
+    sock.sendto(b'Enviame el archivo', server_address)
     print("Cliente listo para recibir, esperando a los demas clientes")
 
     # Se recibe el numero del cliente
@@ -20,6 +20,10 @@ def recibirArchivoDelServidor(sock):
     # Se recibe el nombre del archivo
     nombreArchivo, server = sock.recvfrom(4096)
     nombreArchivo = nombreArchivo.decode()
+
+    # Se recibe el tamanio original del archivo
+    tamanioOriginalArchivo, server = sock.recvfrom(4096)
+    tamanioOriginalArchivo = tamanioOriginalArchivo.decode()
 
     # Se abre el archivo donde se guardara el contenido recibido
     archivo = open("ArchivosRecibidos/Cliente{}-Prueba-{}.{}".format(numCliente, cantConexionesTotales, nombreArchivo.split(".")[-1]), "wb")
@@ -47,12 +51,17 @@ def recibirArchivoDelServidor(sock):
 
     archivo.close()
 
+    # Se comprueba si la entrega del archivo fue exitosa y se informa al servidor
+    tamanioRecibido = os.path.getsize("ArchivosRecibidos/Cliente{}-Prueba-{}.{}".format(numCliente, cantConexionesTotales, nombreArchivo.split(".")[-1]))
+    mensajeComprobacionHash = "La entrega del archivo fue exitosa" if int(tamanioOriginalArchivo) == int(tamanioRecibido) else "La entrega del archivo NO fue exitosa"
+    sock.sendto(str(int(tamanioOriginalArchivo) == int(tamanioRecibido)).encode(), server_address)
+
     # Se crea y se escribe el log
-    escribirLog(numCliente, nombreArchivo, cantConexionesTotales, tiempoDeTransmision)
+    escribirLog(numCliente, nombreArchivo, cantConexionesTotales, mensajeComprobacionHash, tiempoDeTransmision)
 
     sock.close()
 
-def escribirLog(numCliente, nombreArchivo, cantConexionesTotales, tiempoDeTransmision):
+def escribirLog(numCliente, nombreArchivo, cantConexionesTotales, mensajeComprobacionHash, tiempoDeTransmision):
     global server_address
 
     # a.
@@ -66,10 +75,8 @@ def escribirLog(numCliente, nombreArchivo, cantConexionesTotales, tiempoDeTransm
     # c.
     archivo.write("Servidor desde el que se realizo la transferencia: ({}, {})\n\n".format(host, port))
 
-    '''
     # d.
     archivo.write("Resultado de la transferencia: {}\n\n".format(mensajeComprobacionHash))
-    '''
 
     # e.
     archivo.write("Tiempo de transmision: {:.2f} segundos\n".format(tiempoDeTransmision))
