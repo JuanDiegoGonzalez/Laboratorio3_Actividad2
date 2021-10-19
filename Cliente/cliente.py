@@ -32,7 +32,7 @@ def recibirArchivoDelServidor(sock):
     inicioTransmision = time.time()
 
     # Se recibe y se escribe el contenido del archivo
-    sock.settimeout(2)
+    sock.settimeout(10)
     FILE_BUFFER_SIZE = 65536
     recibido, server = sock.recvfrom(FILE_BUFFER_SIZE)
     i = 0
